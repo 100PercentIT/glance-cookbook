@@ -18,8 +18,14 @@
 #
 
 ::Chef::Recipe.send(:include, Opscode::OpenSSL::Password)
+if node['db']['provider'] == 'mysql'
 include_recipe "mysql::client"
 include_recipe "mysql::ruby"
+end
+if node['db']['provider'] == 'postgresql'
+  include_recipe "postgresql::client"
+  include_recipe "postgresql::ruby"
+end
 include_recipe "glance::glance-rsyslog"
 include_recipe "monitoring"
 
@@ -60,15 +66,30 @@ ks_service_endpoint = get_access_endpoint("keystone-api", "keystone", "service-a
 keystone = get_settings_by_role("keystone", "keystone")
 
 registry_endpoint = get_bind_endpoint("glance", "registry")
-mysql_info = get_access_endpoint("mysql-master", "mysql", "db")
+if node['db']['provider'] == 'mysql'
+  mysql_info = get_access_endpoint("mysql-master", "mysql", "db")
+end
+if node['db']['provider'] == 'postgresql'
+  postgresql_info = get_access_endpoint('postgresql-master', 'postgresql', 'db')
+end
+
 
 package "curl" do
   action :install
 end
 
-platform_options["mysql_python_packages"].each do |pkg|
-  package pkg do
-    action :install
+if node['db']['provider'] == 'mysql'
+  platform_options["mysql_python_packages"].each do |pkg|
+    package pkg do
+      action :install
+    end
+  end
+end
+if node['db']['provider'] == 'postgresql'
+  platform_options["postgresql_python_packages"].each do |pkg|
+    package pkg do
+      action :install
+    end
   end
 end
 
@@ -131,21 +152,42 @@ template "/etc/glance/logging.conf" do
   notifies :restart, resources(:service => "glance-registry"), :delayed
 end
 
-template "/etc/glance/glance-registry.conf" do
-  source "#{release}/glance-registry.conf.erb"
-  owner "glance"
-  group "glance"
-  mode "0600"
-  variables(
-    "registry_bind_address" => registry_endpoint["host"],
-    "registry_port" => registry_endpoint["port"],
-    "db_ip_address" => mysql_info["host"],
-    "db_user" => node["glance"]["db"]["username"],
-    "db_password" => node["glance"]["db"]["password"],
-    "db_name" => node["glance"]["db"]["name"],
-    "use_syslog" => node["glance"]["syslog"]["use"],
-    "log_facility" => node["glance"]["syslog"]["facility"]
-  )
+if node['db']['provider'] == 'mysql'
+  template "/etc/glance/glance-registry.conf" do
+    source "#{release}/glance-registry.conf.erb"
+    owner "glance"
+    group "glance"
+    mode "0600"
+    variables(
+      "registry_bind_address" => registry_endpoint["host"],
+      "registry_port" => registry_endpoint["port"],
+      "db_ip_address" =>  mysql_info["host"],
+      "db_user" => node["glance"]["db"]["username"],
+      "db_password" => node["glance"]["db"]["password"],
+      "db_name" => node["glance"]["db"]["name"],
+      "use_syslog" => node["glance"]["syslog"]["use"],
+      "log_facility" => node["glance"]["syslog"]["facility"]
+    )
+  end
+end
+
+if node['db']['provider'] == 'postgresql'
+  template "/etc/glance/glance-registry.conf" do
+    source "#{release}/glance-registry.postgresql.conf.erb"
+    owner "glance"
+    group "glance"
+    mode "0600"
+    variables(
+      "registry_bind_address" => registry_endpoint["host"],
+      "registry_port" => registry_endpoint["port"],
+      "db_ip_address" => postgresql_info["host"],
+      "db_user" => node["glance"]["db"]["username"],
+      "db_password" => node["glance"]["db"]["password"],
+      "db_name" => node["glance"]["db"]["name"],
+      "use_syslog" => node["glance"]["syslog"]["use"],
+      "log_facility" => node["glance"]["syslog"]["facility"]
+    )
+  end
 end
 
 template "/etc/glance/glance-registry-paste.ini" do

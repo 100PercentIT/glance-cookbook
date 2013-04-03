@@ -18,8 +18,14 @@
 #
 
 ::Chef::Recipe.send(:include, Opscode::OpenSSL::Password)
-include_recipe "mysql::client"
-include_recipe "mysql::ruby"
+if node['db']['provider'] == 'mysql'
+  include_recipe "mysql::client"
+  include_recipe "mysql::ruby"
+end
+if node['db']['provider'] == 'postgresql'
+  include_recipe "postgresql::client"
+  include_recipe "postgresql::ruby"
+end
 include_recipe "glance::glance-rsyslog"
 include_recipe "monitoring"
 
@@ -57,21 +63,41 @@ keystone = get_settings_by_role("keystone", "keystone")
 
 registry_endpoint = get_bind_endpoint("glance", "registry")
 
-# creates db and user and returns connection info
-mysql_info = create_db_and_user("mysql",
-                                node["glance"]["db"]["name"],
-                                node["glance"]["db"]["username"],
-                                node["glance"]["db"]["password"])
+if node['db']['provider'] == 'mysql'
+  mysql_info = create_db_and_user("mysql",
+                                  node["glance"]["db"]["name"],
+                                  node["glance"]["db"]["username"],
+                                  node["glance"]["db"]["password"])
 
-mysql_connect_ip = get_access_endpoint('mysql-master', 'mysql', 'db')["host"]
+  mysql_connect_ip = get_access_endpoint('mysql-master', 'mysql', 'db')["host"]
+end
+if node['db']['provider'] == 'postgresql'
+  postgresql_info = create_db_and_user("postgresql",
+                                  node["glance"]["db"]["name"],
+                                  node["glance"]["db"]["username"],
+                                  node["glance"]["db"]["password"])
+
+  postgresql_connect_ip = get_access_endpoint('postgresql-master', 'postgresql', 'db')["host"]
+end
+
+
 
 package "curl" do
   action :install
 end
 
-platform_options["mysql_python_packages"].each do |pkg|
-  package pkg do
-    action :install
+if node['db']['provider'] == 'mysql'
+  platform_options["mysql_python_packages"].each do |pkg|
+    package pkg do
+      action :install
+    end
+  end
+end
+if node['db']['provider'] == 'postgresql'
+  platform_options["postgresql_python_packages"].each do |pkg|
+    package pkg do
+      action :install
+    end
   end
 end
 
@@ -144,21 +170,42 @@ template "/etc/glance/logging.conf" do
   )
 end
 
-template "/etc/glance/glance-registry.conf" do
-  source "#{release}/glance-registry.conf.erb"
-  owner "glance"
-  group "glance"
-  mode "0600"
-  variables(
-    "registry_bind_address" => registry_endpoint["host"],
-    "registry_port" => registry_endpoint["port"],
-    "db_ip_address" => mysql_connect_ip,
-    "db_user" => node["glance"]["db"]["username"],
-    "db_password" => node["glance"]["db"]["password"],
-    "db_name" => node["glance"]["db"]["name"],
-    "use_syslog" => node["glance"]["syslog"]["use"],
-    "log_facility" => node["glance"]["syslog"]["facility"]
-  )
+if node['db']['provider'] == 'mysql'
+  template "/etc/glance/glance-registry.conf" do
+    source "#{release}/glance-registry.conf.erb"
+    owner "glance"
+    group "glance"
+    mode "0600"
+    variables(
+      "registry_bind_address" => registry_endpoint["host"],
+      "registry_port" => registry_endpoint["port"],
+      "db_ip_address" => mysql_connect_ip,
+      "db_user" => node["glance"]["db"]["username"],
+      "db_password" => node["glance"]["db"]["password"],
+      "db_name" => node["glance"]["db"]["name"],
+      "use_syslog" => node["glance"]["syslog"]["use"],
+      "log_facility" => node["glance"]["syslog"]["facility"]
+    )
+  end
+end
+
+if node['db']['provider'] == 'postgresql'
+  template "/etc/glance/glance-registry.conf" do
+    source "#{release}/glance-registry.postgresql.conf.erb"
+    owner "glance"
+    group "glance"
+    mode "0600"
+    variables(
+      "registry_bind_address" => registry_endpoint["host"],
+      "registry_port" => registry_endpoint["port"],
+      "db_ip_address" => postgresql_connect_ip,
+      "db_user" => node["glance"]["db"]["username"],
+      "db_password" => node["glance"]["db"]["password"],
+      "db_name" => node["glance"]["db"]["name"],
+      "use_syslog" => node["glance"]["syslog"]["use"],
+      "log_facility" => node["glance"]["syslog"]["facility"]
+    )
+  end
 end
 
 # TODO(breu): need to find out why this is happening

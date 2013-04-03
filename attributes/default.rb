@@ -67,6 +67,7 @@ case platform
 when "fedora", "redhat", "centos"
   default["glance"]["platform"]["essex-final"] = {
     "mysql_python_packages" => [ "MySQL-python" ],                  # node_attribute
+    "postgresql_python_packages" => [ "python-psycopg2" ],
     "glance_packages" => [ "openstack-glance", "openstack-swift", "cronie" ], # node_attribute
     "glance_api_service" => "openstack-glance-api",                 # node_attribute
     "glance_registry_service" => "openstack-glance-registry",       # node_attribute
@@ -75,6 +76,7 @@ when "fedora", "redhat", "centos"
   }
   default["glance"]["platform"]["folsom"] = {
     "mysql_python_packages" => [ "MySQL-python" ],                  # node_attribute
+    "postgresql_python_packages" => [ "python-psycopg2" ],
     "glance_packages" => [ "openstack-glance", "python-swiftclient", "cronie", "python-prettytable" ], # node_attribute
     "glance_api_service" => "openstack-glance-api",                 # node_attribute
     "glance_registry_service" => "openstack-glance-registry",       # node_attribute
@@ -84,6 +86,7 @@ when "fedora", "redhat", "centos"
 when "ubuntu"
   default["glance"]["platform"]["essex-final"] = {
     "mysql_python_packages" => [ "python-mysqldb" ],                # node_attribute
+    "postgresql_python_packages" => [ "python-psycopg2" ],
     "glance_packages" => [ "glance", "python-swift" ],              # node_attribute
     "glance_api_service" => "glance-api",                           # node_attribute
     "glance_registry_service" => "glance-registry",                 # node_attribute
@@ -92,6 +95,7 @@ when "ubuntu"
   }
   default["glance"]["platform"]["folsom"] = {
     "mysql_python_packages" => [ "python-mysqldb" ],                # node_attribute
+    "postgresql_python_packages" => [ "python-psycopg2" ],
     "glance_packages" => [ "glance", "python-swift", "python-prettytable" ],              # node_attribute
     "glance_api_service" => "glance-api",                           # node_attribute
     "glance_registry_service" => "glance-registry",                 # node_attribute

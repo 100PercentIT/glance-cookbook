@@ -44,9 +44,18 @@ package "curl" do
   action :install
 end
 
-platform_options["mysql_python_packages"].each do |pkg|
-  package pkg do
-    action :install
+if node['db']['provider'] == 'mysql'
+  platform_options["mysql_python_packages"].each do |pkg|
+    package pkg do
+      action :install
+    end
+  end
+end
+if node['db']['provider'] == 'postgresql'
+  platform_options["postgresql_python_packages"].each do |pkg|
+    package pkg do
+      action :install
+    end
   end
 end
 
@@ -110,7 +119,12 @@ template "/etc/glance/policy.json" do
 end
 
 rabbit_info = get_access_endpoint("rabbitmq-server", "rabbitmq", "queue")
-mysql_info = get_access_endpoint("mysql-master", "mysql", "db")
+if node['db']['provider'] == 'mysql'
+  mysql_info = get_access_endpoint("mysql-master", "mysql", "db")
+end
+if node['db']['provider'] == 'postgresql'
+  postgresql_info = get_access_endpoint('postgresql-master', 'postgresql', 'db')
+end
 
 ks_admin_endpoint = get_access_endpoint("keystone-api", "keystone", "admin-api")
 ks_service_endpoint = get_access_endpoint("keystone-api", "keystone","service-api")
@@ -162,35 +176,70 @@ template "/etc/glance/logging.conf" do
   notifies :restart, resources(:service => "glance-api"), :delayed
 end
 
-template "/etc/glance/glance-api.conf" do
-  source "#{release}/glance-api.conf.erb"
-  owner "glance"
-  group "glance"
-  mode "0600"
-  variables(
-    "api_bind_address" => api_endpoint["host"],
-    "api_bind_port" => api_endpoint["port"],
-    "registry_ip_address" => registry_endpoint["host"],
-    "registry_port" => registry_endpoint["port"],
-    "use_syslog" => node["glance"]["syslog"]["use"],
-    "log_facility" => node["glance"]["syslog"]["facility"],
-    "rabbit_ipaddress" => rabbit_info["host"],
-    "rabbit_port" => rabbit_info["port"],
-    "default_store" => glance["api"]["default_store"],
-    "glance_flavor" => glance_flavor,
-    "swift_store_key" => swift_store_key,
-    "swift_store_user" => swift_store_user,
-    "swift_store_auth_address" => swift_store_auth_address,
-    "swift_store_auth_version" => swift_store_auth_version,
-    "swift_large_object_size" => glance["api"]["swift"]["store_large_object_size"],
-    "swift_large_object_chunk_size" => glance["api"]["swift"]["store_large_object_chunk_size"],
-    "swift_store_container" => glance["api"]["swift"]["store_container"],
-    "db_ip_address" => mysql_info["host"],
-    "db_user" => settings["db"]["username"],
-    "db_password" => settings["db"]["password"],
-    "db_name" => settings["db"]["name"]
-  )
-  notifies :restart, resources(:service => "glance-api"), :immediately
+if node['db']['provider'] == 'mysql'
+  template "/etc/glance/glance-api.conf" do
+    source "#{release}/glance-api.conf.erb"
+    owner "glance"
+    group "glance"
+    mode "0600"
+    variables(
+      "api_bind_address" => api_endpoint["host"],
+      "api_bind_port" => api_endpoint["port"],
+      "registry_ip_address" => registry_endpoint["host"],
+      "registry_port" => registry_endpoint["port"],
+      "use_syslog" => node["glance"]["syslog"]["use"],
+      "log_facility" => node["glance"]["syslog"]["facility"],
+      "rabbit_ipaddress" => rabbit_info["host"],
+      "rabbit_port" => rabbit_info["port"],
+      "default_store" => glance["api"]["default_store"],
+      "glance_flavor" => glance_flavor,
+      "swift_store_key" => swift_store_key,
+      "swift_store_user" => swift_store_user,
+      "swift_store_auth_address" => swift_store_auth_address,
+      "swift_store_auth_version" => swift_store_auth_version,
+      "swift_large_object_size" => glance["api"]["swift"]["store_large_object_size"],
+      "swift_large_object_chunk_size" => glance["api"]["swift"]["store_large_object_chunk_size"],
+      "swift_store_container" => glance["api"]["swift"]["store_container"],
+      "db_ip_address" => mysql_info["host"],
+      "db_user" => settings["db"]["username"],
+      "db_password" => settings["db"]["password"],
+      "db_name" => settings["db"]["name"]
+    )
+    notifies :restart, resources(:service => "glance-api"), :immediately
+  end
+end
+
+if node['db']['provider'] == 'postgresql'
+  template "/etc/glance/glance-api.conf" do
+    source "#{release}/glance-api.postgresql.conf.erb"
+    owner "glance"
+    group "glance"
+    mode "0600"
+    variables(
+      "api_bind_address" => api_endpoint["host"],
+      "api_bind_port" => api_endpoint["port"],
+      "registry_ip_address" => registry_endpoint["host"],
+      "registry_port" => registry_endpoint["port"],
+      "use_syslog" => node["glance"]["syslog"]["use"],
+      "log_facility" => node["glance"]["syslog"]["facility"],
+      "rabbit_ipaddress" => rabbit_info["host"],
+      "rabbit_port" => rabbit_info["port"],
+      "default_store" => glance["api"]["default_store"],
+      "glance_flavor" => glance_flavor,
+      "swift_store_key" => swift_store_key,
+      "swift_store_user" => swift_store_user,
+      "swift_store_auth_address" => swift_store_auth_address,
+      "swift_store_auth_version" => swift_store_auth_version,
+      "swift_large_object_size" => glance["api"]["swift"]["store_large_object_size"],
+      "swift_large_object_chunk_size" => glance["api"]["swift"]["store_large_object_chunk_size"],
+      "swift_store_container" => glance["api"]["swift"]["store_container"],
+      "db_ip_address" => postgresql_info["host"],
+      "db_user" => settings["db"]["username"],
+      "db_password" => settings["db"]["password"],
+      "db_name" => settings["db"]["name"]
+    )
+    notifies :restart, resources(:service => "glance-api"), :immediately
+  end
 end
 
 template "/etc/glance/glance-api-paste.ini" do
